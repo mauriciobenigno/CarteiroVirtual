@@ -114,11 +114,12 @@ def analizaMensagem(mensagem,data):
         for item in listaAjuda:
             if re.search(mensagem, item, re.IGNORECASE):
                 bot.sendMessage(data['id'],"No momento, esses são os serviços oferecidos:\n"+
-                "- Consulta de endereço via CEP (Comando 'ENDEREÇO')\n"+
-                
+                "- Consulta de endereço via CEP (Comando 'CEP')\n"+
+                "- Consulta de endereço via endereço (Comando 'ENDEREÇO')\n"+
                 "Obs: As informações consultadas são consumidas do webservice do ViaCEP\n"+
                 "- Consulta de valor de envio (Comando 'CONSULTA')\n"+
-                "[BREVE]- Consulta de encomenda (Comando 'RASTREIO')\n") 
+                "- Consulta de encomenda (Comando 'RASTREIO')[BREVE]\n"+
+                "Obs: As informações consultadas são consumidas do webservice dos CORREIOS\n") 
                 roteiro=0
                 return True
         
