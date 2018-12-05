@@ -16,8 +16,8 @@ roteiro = 0
 # Variaveis Globais - ViaCEP
 estado = "GO"
 cidade = "Goiânia"
-logradouro = "SR S3"
-CEP = "74785240"
+logradouro = "Rua 3"
+CEP = "00000000"
 
 # Variáveis Globais - Correios
 origemCEP = "12345678"
