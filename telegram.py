@@ -3,13 +3,17 @@ import telepot
 import json
 import re
 import http.client
-import urllib
+import urllib #Para trabalhar com as URLs
+from urllib.request import urlopen #Para trabalhar com as URLs
+from xml.dom import minidom # Para trabalhar com o XML retornado pelos correios
 
 # Conecta ao Bot    
 bot = telepot.Bot("790055465:AAFFwJdBCJacLFgKIfEvmKAnaF2hg3ljc7E")
 
-# Variaveis Globais - ViaCEP
+# Andamento da conversa
 roteiro = 0
+
+# Variaveis Globais - ViaCEP
 estado = "GO"
 cidade = "Goiânia"
 logradouro = "SR S3"
@@ -24,6 +28,7 @@ comprimento = "0"
 altura = "0"
 largura = "0"
 diametro = "0"
+codigoRastreio = "SW123456789BR"
 
 # Calcula Frete
 def calculaFrete(origemCEP, destinoCEP, codigoServico, peso, comprimento, altura, largura, diametro):
@@ -32,8 +37,8 @@ def calculaFrete(origemCEP, destinoCEP, codigoServico, peso, comprimento, altura
     
     # Campos para consulta de preço e prazo
     campos = [
-            ('nCdEmpresa', ""),
-            ('sDsSenha', ""),
+            ('nCdEmpresa', ''),
+            ('sDsSenha', ''),
             ('nCdServico', codigoServico),
             ('sCepOrigem', origemCEP),
             ('sCepDestino', destinoCEP),
@@ -46,9 +51,37 @@ def calculaFrete(origemCEP, destinoCEP, codigoServico, peso, comprimento, altura
             ('sCdMaoPropria', "N"), # Não sei o significa, então não vamos usar
             ('nVlValorDeclarado', "0"), # Não vamos declarar valores
             ('sCdAvisoRecebimento', "N"), # Não vamos adicionar opção de AR
-            ('StrRetorno', toback),
+            ('StrRetorno', "xml"), # Informar ao correios pra retornar os dados em XML
         ]
 
+    #Uusando o HTTPGET
+    url = urlCorreios + "?" + urllib.parse.urlencode(campos)
+    informacoes = minidom.parse(urlopen(url))
+
+    #Analisando o HTTP POST 
+    tagsResposta = ('Codigo',
+                    'Valor',
+                    'PrazoEntrega',
+                    'ValorMaoPropria',
+                    'ValorValorDeclarado',
+                    'EntregaDomiciliar',
+                    'EntregaSabado',
+                    'Erro',
+                    'MsgErro',
+                    'ValorSemAdicionais',
+                    'obsFim',
+                    'DataMaxEntrega',
+                    'HoraMaxEntrega')
+    
+    dados = {}
+    for tagsResposta in tagsResposta:
+        try:
+            dados[tagsResposta] = informacoes.getElementsByTagName(tagsResposta)[0]
+            dados[tagsResposta] = dados[tagsResposta].childNodes[0].data
+        except:
+            dados[tagsResposta] = ''
+
+    return dados
 
 # Trata as mensagens recebidas
 def analizaMensagem(mensagem,data):
@@ -66,7 +99,69 @@ def analizaMensagem(mensagem,data):
     global largura
     global diametro
 
-    if roteiro == 10:
+    if roteiro == 0:
+        listaOI= ("OI","Oi","oi","ola","Ola","Olá","Hi","hi","Hey","hey","Ei","ei","Eai","eai","Eae","eae")
+        for item in listaOI:
+            if re.search(mensagem, item, re.IGNORECASE):
+                bot.sendMessage(data['id'],"Olá, tudo bem?")          
+                bot.sendMessage(data['id'],"Sou o Carteiro Virtual e estou a disposição para tirar algumas dúvidas " +
+                "em relação a consulta de preço de frete e informar endereços referentes a CEPs...")
+                bot.sendMessage(data['id'],"Se quiser saber como realizar a consulta de informações, basta digitar 'Ajuda'") 
+                roteiro=0
+                return True
+
+        listaAjuda= ("AJUDA","ajuda","Ajuda")
+        for item in listaAjuda:
+            if re.search(mensagem, item, re.IGNORECASE):
+                bot.sendMessage(data['id'],"No momento, esses são os serviços oferecidos:\n"+
+                "- Consulta de endereço via CEP (Comando 'ENDEREÇO')\n"+
+                
+                "Obs: As informações consultadas são consumidas do webservice do ViaCEP\n"+
+                "- Consulta de valor de envio (Comando 'CONSULTA')\n"+
+                "[BREVE]- Consulta de encomenda (Comando 'RASTREIO')\n") 
+                roteiro=0
+                return True
+        
+        listaCEP= ("CEP","Cep","cep")
+        for item in listaCEP:
+            if re.search(mensagem, item, re.IGNORECASE):
+                bot.sendMessage(data['id'],"Okay, para descobrir o CEP, vou precisar de algumas informações, digite as mensagens nesta ordem:\n"+
+                "- UF (Siga do estado)\n"+
+                "- Cidade\n"+
+                "- Logradouro (Nome da rua, avenida, estrada, etc)\n"+
+                "Exemplo: \nMensagem 1: GO\nMensagem 2: Goiania \nMensagem 3: SR 53") 
+                bot.sendMessage(data['id'],"Muito bem, digite a sigla do Estado:")
+                roteiro=20
+                return True
+        
+        listaENDERECO= ("Endereço","endereço","ENDEREÇO","Endereco","endereco","ENDERECO")
+        for item in listaENDERECO:
+            if re.search(mensagem, item, re.IGNORECASE):
+                bot.sendMessage(data['id'],"Okay, para descobrir o endereço, vou precisar do numero do CEP:\n"+
+                "* Digite somente numeros, sem pontos ou traços"+
+                "Exemplo: 74785240") 
+                roteiro=10
+                return True
+        
+        listaCONSULTA= ("Consulta","consulta","CONSULTA")
+        for item in listaCONSULTA:
+            if re.search(mensagem, item, re.IGNORECASE):
+                bot.sendMessage(data['id'],"Okay, vou precisar de algumas informações para te passar um valor aproximado.\n"+
+                "Por gentileza, digite o CEP de Origem:\n Obs: Digite somente numeros, sem pontos ou traços. \nExemplo: 74785240")
+
+                #teste()
+                #roteiro=0
+                roteiro=30
+                return True
+
+        listaRASTREIO= ("Rastreio","rastreio","RASTREIO")
+        for item in listaRASTREIO:
+            if re.search(mensagem, item, re.IGNORECASE):
+                bot.sendMessage(data['id'],"Okay, me informe o código de rastreio da encomenda:.\n"+
+                "Exemplo: SW123456789BR, sempre numero de 13 digitos") 
+                roteiro=40
+                return True
+    elif roteiro == 10:
         CEP = mensagem
         r = requests.get("https://viacep.com.br/ws/"+str(CEP)+"/json/")
         r.encoding
@@ -98,10 +193,16 @@ def analizaMensagem(mensagem,data):
         bot.sendMessage(data['id'],"Digite o tipo de envio (SEDEX ou PAC):")
         roteiro = 32
     elif roteiro == 32:
-        if mensagem == "SEDEX":
-            codigoServico = "40096"
-        if mensagem == "PAC":
-            codigoServico = "41068"
+        listaSEDEX= ("SEDEX","Sedex","sedex")
+        for item in listaSEDEX:
+            if re.search(mensagem, item, re.IGNORECASE):
+                codigoServico = "40010"
+                break
+        listaPAC= ("PAC","Pac","pac")
+        for item in listaPAC:
+            if re.search(mensagem, item, re.IGNORECASE):
+                codigoServico = "41106"
+                break
 
         bot.sendMessage(data['id'],"Agora para o calculo do valor, precisa me informar o peso aproximado em quilogramas igorando o valor apos a virgula."+
         "\nExemplo: o pacote tem 2,1kg, então digite 2")
@@ -121,49 +222,21 @@ def analizaMensagem(mensagem,data):
         roteiro = 36
     elif roteiro == 36:
         largura = mensagem
-        bot.sendMessage(data['id'],"RESULTADO")
+        bot.sendMessage(data['id'],"Só um momento...")
+        dados = calculaFrete(origemCEP,destinoCEP,codigoServico,peso,comprimento,altura,largura,diametro)
+        if codigoServico == "40010":
+            bot.sendMessage(data['id'],"O valor do envio via SEDEX para "+destinoCEP+
+            " custa "+dados['Valor']+" com um prazo de entrega de "+dados['PrazoEntrega']+" dias.")
+        if codigoServico == "41106":
+            bot.sendMessage(data['id'],"O valor do envio via PAC para "+destinoCEP+
+            " custa "+dados['Valor']+" com um prazo de entrega de "+dados['PrazoEntrega']+" dias.")
+        
         roteiro = 0
-
-    listaOI= ("OI","Oi","oi","ola","Ola","Olá","Hi","hi","Hey","hey","Ei","ei","Eai","eai","Eae","eae")
-    for item in listaOI:
-        if re.search(mensagem, item, re.IGNORECASE):
-            bot.sendMessage(data['id'],"Olá, tudo bem?")          
-            bot.sendMessage(data['id'],"Sou o Carteiro Virtual e estou a disposição para tirar algumas dúvidas " +
-            "em relação a consulta de preço de frete e informar endereços referentes a CEPs...")
-            bot.sendMessage(data['id'],"Se quiser saber como realizar a consulta de informações, basta digitar 'Ajuda'") 
-            roteiro=0
-            return True
-
-    listaAjuda= ("AJUDA","ajuda","Ajuda")
-    for item in listaAjuda:
-        if re.search(mensagem, item, re.IGNORECASE):
-            bot.sendMessage(data['id'],"No momento, esses são os serviços oferecidos:\n"+
-            "- Consulta de endereço via CEP (Comando 'Endereço')\n"+
-            "- Consulta de CEP via endereço (Comando 'CEP')\n"+
-            "Obs: As informações consultadas são consumidas do webservice do ViaCEP") 
-            roteiro=0
-            return True
-    
-    listaCEP= ("CEP","Cep","cep")
-    for item in listaCEP:
-        if re.search(mensagem, item, re.IGNORECASE):
-            bot.sendMessage(data['id'],"Okay, para descobrir o CEP, vou precisar de algumas informações, digite as mensagens nesta ordem:\n"+
-            "- UF (Siga do estado)\n"+
-            "- Cidade\n"+
-            "- Logradouro (Nome da rua, avenida, estrada, etc)\n"+
-            "Exemplo: \nMensagem 1: GO\nMensagem 2: Goiania \nMensagem 3: SR 53") 
-            bot.sendMessage(data['id'],"Muito bem, digite a sigla do Estado:")
-            roteiro=20
-            return True
-    
-    listaENDERECO= ("Endereço","endereço","ENDEREÇO","Endereco","endereco","ENDERECO")
-    for item in listaENDERECO:
-        if re.search(mensagem, item, re.IGNORECASE):
-            bot.sendMessage(data['id'],"Okay, para descobrir o endereço, vou precisar do numero do CEP:\n"+
-            "* Digite somente numeros, sem pontos ou traços"+
-            "Exemplo: 74785240") 
-            roteiro=10
-            return True
+    elif roteiro == 40:
+        codigoRastreio = mensagem
+        #CODIGO QUE FAZ RASTREIO
+        bot.sendMessage(data['id'],"RESULTADO:")
+        roteiro = 0
 
 # Verifica as mensagens recebidas
 def recebendoMensagem(msg):
